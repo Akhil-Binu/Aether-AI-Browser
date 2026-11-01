@@ -4,8 +4,13 @@
  */
 
 import { BrowserWindow, WebContentsView, WebContents, Menu, MenuItem, session } from 'electron';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { TabData, WorkspaceData, LayoutBounds, BrowserHistoryItem } from './types.js';
 import { AIService } from './ai-service.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface TabInternal {
   id: string;
@@ -83,7 +88,8 @@ export class TabManager {
         contextIsolation: true,
         nodeIntegration: false,
         session: tabSession,
-        safeDialogs: true
+        safeDialogs: true,
+        preload: path.join(__dirname, '../preload/tab-preload.cjs')
       }
     });
 
@@ -237,35 +243,41 @@ export class TabManager {
     if (!active) return false;
 
     try {
-      // Native Chromium input level insertion (respects active focused input/contenteditable)
-      active.view.webContents.insertText(text);
-      return true;
-    } catch (err) {
-      try {
-        await active.view.webContents.executeJavaScript(`
-          (() => {
-            const el = document.activeElement;
-            if (el) {
-              if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                el.value += ${JSON.stringify(text)};
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-                return true;
-              }
-              if (el.getAttribute('contenteditable') === 'true') {
-                document.execCommand('insertText', false, ${JSON.stringify(text)});
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                return true;
+      const inserted = await active.view.webContents.executeJavaScript(`
+        (() => {
+          // 1. Locate editable target element
+          const target = document.querySelector('div.editor-content[contenteditable="true"], div.ql-editor[contenteditable="true"], div[role="textbox"][contenteditable="true"], div[contenteditable="true"], textarea') || document.activeElement;
+
+          if (target) {
+            target.focus();
+            try {
+              document.execCommand('selectAll', false, null);
+              document.execCommand('insertText', false, ${JSON.stringify(text)});
+            } catch (e) {
+              if ('value' in target) {
+                target.value = ${JSON.stringify(text)};
+              } else {
+                target.innerText = ${JSON.stringify(text)};
               }
             }
-            return false;
-          })()
-        `);
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+            target.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+          return false;
+        })()
+      `);
+      if (inserted) return true;
+    } catch (err) {
+      // Fallback native insertion
+      try {
+        active.view.webContents.insertText(text);
         return true;
       } catch (e) {
         return false;
       }
     }
+    return false;
   }
 
   public searchHistory(query: string): BrowserHistoryItem[] {
@@ -327,47 +339,6 @@ export class TabManager {
     wc.setWindowOpenHandler(({ url }) => {
       this.createTab(url, tab.workspaceId);
       return { action: 'deny' };
-    });
-
-    // In-page AI Comment trigger detection and button injection
-    wc.on('did-finish-load', () => {
-      wc.executeJavaScript(`
-        (() => {
-          if (window.__aetherInjected) return;
-          window.__aetherInjected = true;
-
-          function injectCommentTriggers() {
-            const commentInputs = document.querySelectorAll('div[contenteditable="true"], textarea, .comments-comment-box, [data-testid="tweetTextarea_0"]');
-            commentInputs.forEach(input => {
-              if (input.dataset.aetherAttached) return;
-              input.dataset.aetherAttached = 'true';
-
-              const btn = document.createElement('div');
-              btn.innerHTML = '✨ AI Comment';
-              btn.style.cssText = 'display: inline-flex; align-items: center; background: #0a66c2; color: #fff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; cursor: pointer; margin: 4px 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 999999; font-family: -apple-system, sans-serif;';
-              
-              btn.onmousedown = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('__AETHER_ACTION__:TRIGGER_COMMENT');
-              };
-
-              if (input.parentNode) {
-                input.parentNode.appendChild(btn);
-              }
-            });
-          }
-
-          setInterval(injectCommentTriggers, 2000);
-        })()
-      `).catch(() => {});
-    });
-
-    // Listen for in-page button triggers
-    wc.on('console-message', (_, level, message) => {
-      if (message.includes('__AETHER_ACTION__:TRIGGER_COMMENT')) {
-        this.shellWebContents?.send('action:openAiComment');
-      }
     });
 
     // Native Right-Click Context Menu for Comments & Selection

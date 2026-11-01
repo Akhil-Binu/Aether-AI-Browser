@@ -84,6 +84,13 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({
     outputEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [output]);
 
+  // Auto-generate comments when entering comment mode if suggestions are empty
+  useEffect(() => {
+    if (activeMode === 'comment_generator' && suggestions.length === 0 && !isGeneratingContent) {
+      handleGenerateComment();
+    }
+  }, [activeMode]);
+
   // Handle Page Copilot
   const handleSummarize = () => {
     setOutput('');
