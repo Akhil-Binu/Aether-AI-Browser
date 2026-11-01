@@ -246,22 +246,44 @@ export class TabManager {
       const inserted = await active.view.webContents.executeJavaScript(`
         (() => {
           // 1. Locate editable target element
-          const target = document.querySelector('div.editor-content[contenteditable="true"], div.ql-editor[contenteditable="true"], div[role="textbox"][contenteditable="true"], div[contenteditable="true"], textarea') || document.activeElement;
+          const target = document.querySelector('div.ql-editor[contenteditable="true"], div.editor-content[contenteditable="true"], div[role="textbox"][contenteditable="true"], div[contenteditable="true"], textarea') || document.activeElement;
 
           if (target) {
-            target.focus();
+            try {
+              target.click();
+              target.focus();
+            } catch (e) {}
+
+            let success = false;
             try {
               document.execCommand('selectAll', false, null);
-              document.execCommand('insertText', false, ${JSON.stringify(text)});
+              success = document.execCommand('insertText', false, ${JSON.stringify(text)});
             } catch (e) {
+              success = false;
+            }
+
+            const current = target.innerText || target.value || '';
+            if (!success || !current.includes(${JSON.stringify(text.slice(0, 10))})) {
               if ('value' in target) {
                 target.value = ${JSON.stringify(text)};
               } else {
-                target.innerText = ${JSON.stringify(text)};
+                const p = target.querySelector('p');
+                if (p) {
+                  p.innerText = ${JSON.stringify(text)};
+                } else {
+                  target.innerText = ${JSON.stringify(text)};
+                }
               }
             }
-            target.dispatchEvent(new Event('input', { bubbles: true }));
+
+            try {
+              target.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(text)} }));
+            } catch (e) {}
+            try {
+              target.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(text)} }));
+            } catch (e) {}
             target.dispatchEvent(new Event('change', { bubbles: true }));
+            target.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: ' ' }));
             return true;
           }
           return false;
