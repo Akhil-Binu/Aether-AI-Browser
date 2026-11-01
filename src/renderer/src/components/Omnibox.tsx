@@ -9,7 +9,9 @@ import {
   Lock, 
   PanelLeftClose, 
   PanelLeftOpen, 
-  Clock 
+  Clock,
+  MessageSquare,
+  PenTool
 } from 'lucide-react';
 import { BrowserHistoryItem, TabData } from '../../../preload/shell-preload';
 
@@ -19,6 +21,7 @@ interface OmniboxProps {
   isCopilotOpen: boolean;
   onToggleSidebar: () => void;
   onToggleCopilot: () => void;
+  onOpenMode: (mode: 'comment_generator' | 'post_generator' | 'copilot') => void;
   onOpenCommandPalette: () => void;
 }
 
@@ -28,6 +31,7 @@ export const Omnibox: React.FC<OmniboxProps> = ({
   isCopilotOpen,
   onToggleSidebar,
   onToggleCopilot,
+  onOpenMode,
   onOpenCommandPalette
 }) => {
   const [inputValue, setInputValue] = useState('');
@@ -150,7 +154,25 @@ export const Omnibox: React.FC<OmniboxProps> = ({
       </div>
 
       {/* Action Controls & AI Trigger */}
-      <div className="flex items-center gap-1 text-slate-400">
+      <div className="flex items-center gap-1.5 text-slate-400">
+        <button
+          onClick={() => onOpenMode('comment_generator')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-sm border border-emerald-400/20 transition transform active:scale-95"
+          title="Generate 3 smart AI comments for the current post"
+        >
+          <MessageSquare size={13} className="text-emerald-100" />
+          <span>AI Comment</span>
+        </button>
+
+        <button
+          onClick={() => onOpenMode('post_generator')}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+          title="Create engaging posts with AI"
+        >
+          <PenTool size={13} className="text-indigo-400" />
+          <span>AI Post</span>
+        </button>
+
         <div 
           className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-950 border border-slate-800 text-[11px] text-emerald-400 font-medium"
           title="Ad-blocker & Tracker Protection Active"

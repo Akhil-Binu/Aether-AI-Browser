@@ -21,10 +21,22 @@ type CopilotMode = 'copilot' | 'post_generator' | 'comment_generator' | 'reply_t
 
 interface CopilotPanelProps {
   activeTab: TabData | undefined;
+  activeMode?: CopilotMode;
+  onModeChange?: (mode: CopilotMode) => void;
 }
 
-export const CopilotPanel: React.FC<CopilotPanelProps> = ({ activeTab }) => {
-  const [activeMode, setActiveMode] = useState<CopilotMode>('copilot');
+export const CopilotPanel: React.FC<CopilotPanelProps> = ({ 
+  activeTab,
+  activeMode: externalMode,
+  onModeChange
+}) => {
+  const [internalMode, setInternalMode] = useState<CopilotMode>('comment_generator');
+  const activeMode = externalMode || internalMode;
+
+  const setActiveMode = (mode: CopilotMode) => {
+    setInternalMode(mode);
+    if (onModeChange) onModeChange(mode);
+  };
 
   // Copilot State
   const [output, setOutput] = useState<string>('');

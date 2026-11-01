@@ -3,8 +3,9 @@
  * Manages native WebContentsViews, bounds calculation, partition isolation, and history.
  */
 
-import { BaseWindow, WebContentsView, WebContents, session } from 'electron';
+import { BaseWindow, WebContentsView, WebContents, Menu, MenuItem, session } from 'electron';
 import { TabData, WorkspaceData, LayoutBounds, BrowserHistoryItem } from './types.js';
+import { AIService } from './ai-service.js';
 
 export interface TabInternal {
   id: string;
@@ -22,6 +23,7 @@ export interface TabInternal {
 export class TabManager {
   private window: BaseWindow;
   private shellWebContents: WebContents | null = null;
+  private aiService: AIService | null = null;
   private tabs: Map<string, TabInternal> = new Map();
   private activeTabId: string | null = null;
   private activeWorkspaceId = 'workspace-default';
@@ -42,9 +44,10 @@ export class TabManager {
     isSidebarOpen: true
   };
 
-  constructor(window: BaseWindow, shellWebContents?: WebContents) {
+  constructor(window: BaseWindow, shellWebContents?: WebContents, aiService?: AIService) {
     this.window = window;
     this.shellWebContents = shellWebContents || null;
+    this.aiService = aiService || null;
     this.window.on('resize', () => this.relayout());
   }
 
@@ -324,6 +327,93 @@ export class TabManager {
     wc.setWindowOpenHandler(({ url }) => {
       this.createTab(url, tab.workspaceId);
       return { action: 'deny' };
+    });
+
+    // In-page AI Comment trigger detection and button injection
+    wc.on('did-finish-load', () => {
+      wc.executeJavaScript(`
+        (() => {
+          if (window.__aetherInjected) return;
+          window.__aetherInjected = true;
+
+          function injectCommentTriggers() {
+            const commentInputs = document.querySelectorAll('div[contenteditable="true"], textarea, .comments-comment-box, [data-testid="tweetTextarea_0"]');
+            commentInputs.forEach(input => {
+              if (input.dataset.aetherAttached) return;
+              input.dataset.aetherAttached = 'true';
+
+              const btn = document.createElement('div');
+              btn.innerHTML = '✨ AI Comment';
+              btn.style.cssText = 'display: inline-flex; align-items: center; background: #0a66c2; color: #fff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; cursor: pointer; margin: 4px 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 999999; font-family: -apple-system, sans-serif;';
+              
+              btn.onmousedown = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('__AETHER_ACTION__:TRIGGER_COMMENT');
+              };
+
+              if (input.parentNode) {
+                input.parentNode.appendChild(btn);
+              }
+            });
+          }
+
+          setInterval(injectCommentTriggers, 2000);
+        })()
+      `).catch(() => {});
+    });
+
+    // Listen for in-page button triggers
+    wc.on('console-message', (_, level, message) => {
+      if (message.includes('__AETHER_ACTION__:TRIGGER_COMMENT')) {
+        this.shellWebContents?.send('action:openAiComment');
+      }
+    });
+
+    // Native Right-Click Context Menu for Comments & Selection
+    wc.on('context-menu', (event, params) => {
+      const menu = new Menu();
+
+      if (params.selectionText && params.selectionText.trim().length > 0) {
+        menu.append(new MenuItem({
+          label: '💬 Generate AI Comment for Selection',
+          click: () => {
+            this.shellWebContents?.send('action:openAiComment', { text: params.selectionText });
+          }
+        }));
+
+        menu.append(new MenuItem({
+          label: '✍️ Create Post from Selection',
+          click: () => {
+            this.shellWebContents?.send('action:openAiPost', { text: params.selectionText });
+          }
+        }));
+
+        menu.append(new MenuItem({ type: 'separator' }));
+      }
+
+      if (params.isEditable) {
+        menu.append(new MenuItem({
+          label: '✨ Auto-Generate AI Comment & Insert Here',
+          click: async () => {
+            if (this.aiService) {
+              try {
+                const pageData = await this.aiService.extractCleanPageContent(wc);
+                const res = await this.aiService.generateSocialComment({ sourcePostText: pageData.content });
+                if (res.suggestions.length > 0) {
+                  wc.insertText(res.suggestions[0].content);
+                }
+              } catch (e) {}
+            }
+          }
+        }));
+        menu.append(new MenuItem({ type: 'separator' }));
+      }
+
+      menu.append(new MenuItem({ role: 'cut' }));
+      menu.append(new MenuItem({ role: 'copy' }));
+      menu.append(new MenuItem({ role: 'paste' }));
+      menu.popup();
     });
   }
 

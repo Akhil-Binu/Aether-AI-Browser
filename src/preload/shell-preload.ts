@@ -127,6 +127,18 @@ const browserAPI = {
     ipcRenderer.invoke('tabs:insertText', { text }),
 
   // --- State Broadcast Listeners ---
+  onOpenAiComment: (callback: (data?: { text?: string }) => void) => {
+    const handler = (_: any, data?: { text?: string }) => callback(data);
+    ipcRenderer.on('action:openAiComment', handler);
+    return () => ipcRenderer.removeListener('action:openAiComment', handler);
+  },
+
+  onOpenAiPost: (callback: (data?: { text?: string }) => void) => {
+    const handler = (_: any, data?: { text?: string }) => callback(data);
+    ipcRenderer.on('action:openAiPost', handler);
+    return () => ipcRenderer.removeListener('action:openAiPost', handler);
+  },
+
   onTabsUpdated: (callback: (tabs: TabData[], activeId: string, workspaceId: string) => void) => {
     const handler = (_: any, data: { tabs: TabData[]; activeId: string; workspaceId: string }) =>
       callback(data.tabs, data.activeId, data.workspaceId);

@@ -56,7 +56,7 @@ async function createBrowser() {
   privacyManager.setupSessionPrivacy(session.defaultSession);
 
   // 4. Initialize Tab Manager
-  tabManager = new TabManager(mainWindow, shellView.webContents);
+  tabManager = new TabManager(mainWindow, shellView.webContents, aiService);
 
   // Register all IPC Handlers
   setupIpcHandlers();

@@ -12,6 +12,7 @@ export const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [isCopilotOpen, setIsCopilotOpen] = useState<boolean>(true);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+  const [copilotMode, setCopilotMode] = useState<'copilot' | 'post_generator' | 'comment_generator' | 'reply_to_comment'>('comment_generator');
 
   useEffect(() => {
     // Listen for tab updates dispatched from Electron Main Process
@@ -19,6 +20,19 @@ export const App: React.FC = () => {
       setTabs(updatedTabs);
       setActiveId(currentActiveId);
       setActiveWorkspaceId(workspaceId);
+    });
+
+    // Listen for action triggers from context menu or in-page buttons
+    const unsubComment = window.browserAPI.onOpenAiComment?.(() => {
+      setCopilotMode('comment_generator');
+      setIsCopilotOpen(true);
+      window.browserAPI.toggleCopilot(true);
+    });
+
+    const unsubPost = window.browserAPI.onOpenAiPost?.(() => {
+      setCopilotMode('post_generator');
+      setIsCopilotOpen(true);
+      window.browserAPI.toggleCopilot(true);
     });
 
     // Listen for global keyboard shortcut Cmd/Ctrl + K
@@ -33,6 +47,8 @@ export const App: React.FC = () => {
 
     return () => {
       unsub();
+      if (unsubComment) unsubComment();
+      if (unsubPost) unsubPost();
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
@@ -49,6 +65,12 @@ export const App: React.FC = () => {
     window.browserAPI.toggleCopilot(nextState);
   };
 
+  const handleOpenMode = (mode: 'comment_generator' | 'post_generator' | 'copilot') => {
+    setCopilotMode(mode);
+    setIsCopilotOpen(true);
+    window.browserAPI.toggleCopilot(true);
+  };
+
   const activeTab = tabs.find((t) => t.id === activeId);
 
   return (
@@ -60,6 +82,7 @@ export const App: React.FC = () => {
         isCopilotOpen={isCopilotOpen}
         onToggleSidebar={handleToggleSidebar}
         onToggleCopilot={handleToggleCopilot}
+        onOpenMode={handleOpenMode}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
       />
 
@@ -81,7 +104,11 @@ export const App: React.FC = () => {
 
         {/* Right: AI Copilot Panel */}
         {isCopilotOpen && (
-          <CopilotPanel activeTab={activeTab} />
+          <CopilotPanel 
+            activeTab={activeTab} 
+            activeMode={copilotMode}
+            onModeChange={setCopilotMode}
+          />
         )}
       </div>
 
