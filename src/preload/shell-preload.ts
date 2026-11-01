@@ -38,6 +38,18 @@ export interface BrowserHistoryItem {
   visitedAt: number;
 }
 
+export interface ContentSuggestion {
+  id: number;
+  style_label: string;
+  content: string;
+  character_count: number;
+}
+
+export interface ContentGenerationResult {
+  mode: 'post_generator' | 'comment_generator' | 'reply_to_comment';
+  suggestions: ContentSuggestion[];
+}
+
 const browserAPI = {
   // --- Tabs & Navigation ---
   createTab: (url?: string, workspaceId?: string) =>
@@ -100,6 +112,19 @@ const browserAPI = {
     ipcRenderer.on('ai:stream', handler);
     return () => ipcRenderer.removeListener('ai:stream', handler);
   },
+
+  // --- Social Content Creation Suite ---
+  generatePost: (params: { topic: string; tone?: string; audience?: string; instructions?: string }): Promise<ContentGenerationResult> =>
+    ipcRenderer.invoke('ai:generatePost', params),
+
+  generateComment: (params: { sourcePostText?: string; tone?: string; instructions?: string }): Promise<ContentGenerationResult> =>
+    ipcRenderer.invoke('ai:generateComment', params),
+
+  generateReply: (params: { sourcePostText?: string; sourceCommentText: string; tone?: string; instructions?: string }): Promise<ContentGenerationResult> =>
+    ipcRenderer.invoke('ai:generateReply', params),
+
+  insertTextToActiveTab: (text: string): Promise<boolean> =>
+    ipcRenderer.invoke('tabs:insertText', { text }),
 
   // --- State Broadcast Listeners ---
   onTabsUpdated: (callback: (tabs: TabData[], activeId: string, workspaceId: string) => void) => {

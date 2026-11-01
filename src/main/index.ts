@@ -109,6 +109,10 @@ function setupIpcHandlers() {
     tabManager?.togglePinTab(tabId);
   });
 
+  ipcMain.handle('tabs:insertText', async (_, { text }) => {
+    return (await tabManager?.insertTextIntoActiveTab(text)) || false;
+  });
+
   // --- Workspaces ---
   ipcMain.handle('workspaces:getAll', () => {
     return tabManager?.getWorkspaces();
@@ -167,6 +171,40 @@ function setupIpcHandlers() {
     } catch (err: any) {
       shellView.webContents.send('ai:stream', { text: '', isComplete: true, error: err.message });
     }
+  });
+
+  // --- Social Content Creation Suite ---
+  ipcMain.handle('ai:generatePost', async (_, params) => {
+    return await aiService.generateSocialPost(params);
+  });
+
+  ipcMain.handle('ai:generateComment', async (_, params) => {
+    // If user didn't provide post text, automatically scrape it from current active tab!
+    let sourceText = params.sourcePostText;
+    if (!sourceText) {
+      const activeTab = tabManager?.getActiveTab();
+      if (activeTab) {
+        try {
+          const pageData = await aiService.extractCleanPageContent(activeTab.view.webContents);
+          sourceText = pageData.content.slice(0, 2000);
+        } catch (e) {}
+      }
+    }
+    return await aiService.generateSocialComment({ ...params, sourcePostText: sourceText });
+  });
+
+  ipcMain.handle('ai:generateReply', async (_, params) => {
+    let sourceText = params.sourcePostText;
+    if (!sourceText) {
+      const activeTab = tabManager?.getActiveTab();
+      if (activeTab) {
+        try {
+          const pageData = await aiService.extractCleanPageContent(activeTab.view.webContents);
+          sourceText = pageData.content.slice(0, 1500);
+        } catch (e) {}
+      }
+    }
+    return await aiService.generateSocialReply({ ...params, sourcePostText: sourceText });
   });
 }
 

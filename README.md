@@ -79,6 +79,12 @@ Aether strictly enforces three-tier process separation utilizing Electron’s mo
 - **Declarative Network Filtering**: Proactively cancels outbound requests to ad networks, cross-site trackers, and telemetry beacons.
 - **Client Telemetry Stripping**: Removes invasive tracking headers (`X-Client-Data`, `Sec-CH-UA-Full-Version-List`) and broadcasts `DNT` (Do Not Track) and `Sec-GPC` (Global Privacy Control).
 
+### 5. Native Social & Professional Engagement Suite
+- **Post Generator**: Converts raw notes and topics into 3 publication-ready formats: *Actionable List Framework*, *Storytelling/Contrarian Take*, and *Short Punchy Hook* with audience targeting and hashtags.
+- **Context-Aware Comment Generator**: Reads the open webpage/post and crafts 3 high-impact angles: *Value-Add (Team Nuance)*, *Thoughtful Question*, and *Constructive Edge Case*. Zero robotic filler phrases (*"delve"*, *"tapestry"*, *"great post"*).
+- **Reply Assistant**: Generates contextual responses to comments (*Deepen Conversation*, *Quick & Punchy*, *Professional Closing*).
+- **1-Click In-Page Injection**: Injects generated content directly into focused input fields, textareas, and `contenteditable` editors in the active web tab at the native Chromium level.
+
 ---
 
 ## 🛡️ Security & Sandboxing

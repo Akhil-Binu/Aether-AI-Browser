@@ -229,6 +229,42 @@ export class TabManager {
     return this.activeTabId ? this.tabs.get(this.activeTabId) || null : null;
   }
 
+  public async insertTextIntoActiveTab(text: string): Promise<boolean> {
+    const active = this.getActiveTab();
+    if (!active) return false;
+
+    try {
+      // Native Chromium input level insertion (respects active focused input/contenteditable)
+      active.view.webContents.insertText(text);
+      return true;
+    } catch (err) {
+      try {
+        await active.view.webContents.executeJavaScript(`
+          (() => {
+            const el = document.activeElement;
+            if (el) {
+              if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                el.value += ${JSON.stringify(text)};
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+              }
+              if (el.getAttribute('contenteditable') === 'true') {
+                document.execCommand('insertText', false, ${JSON.stringify(text)});
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                return true;
+              }
+            }
+            return false;
+          })()
+        `);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+  }
+
   public searchHistory(query: string): BrowserHistoryItem[] {
     const q = query.toLowerCase().trim();
     if (!q) return this.history.slice(-10).reverse();

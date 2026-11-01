@@ -42,3 +42,15 @@ export interface BrowserHistoryItem {
   url: string;
   visitedAt: number;
 }
+
+export interface ContentSuggestion {
+  id: number;
+  style_label: string;
+  content: string;
+  character_count: number;
+}
+
+export interface ContentGenerationResult {
+  mode: 'post_generator' | 'comment_generator' | 'reply_to_comment';
+  suggestions: ContentSuggestion[];
+}
