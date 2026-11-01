@@ -3,7 +3,7 @@
  * Manages native WebContentsViews, bounds calculation, partition isolation, and history.
  */
 
-import { BaseWindow, WebContentsView, WebContents, Menu, MenuItem, session } from 'electron';
+import { BrowserWindow, WebContentsView, WebContents, Menu, MenuItem, session } from 'electron';
 import { TabData, WorkspaceData, LayoutBounds, BrowserHistoryItem } from './types.js';
 import { AIService } from './ai-service.js';
 
@@ -21,7 +21,7 @@ export interface TabInternal {
 }
 
 export class TabManager {
-  private window: BaseWindow;
+  private window: BrowserWindow;
   private shellWebContents: WebContents | null = null;
   private aiService: AIService | null = null;
   private tabs: Map<string, TabInternal> = new Map();
@@ -39,12 +39,12 @@ export class TabManager {
   private layout: LayoutBounds = {
     topBarHeight: 44,
     sidebarWidth: 240,
-    copilotWidth: 380,
+    copilotWidth: 390,
     isCopilotOpen: true,
     isSidebarOpen: true
   };
 
-  constructor(window: BaseWindow, shellWebContents?: WebContents, aiService?: AIService) {
+  constructor(window: BrowserWindow, shellWebContents?: WebContents, aiService?: AIService) {
     this.window = window;
     this.shellWebContents = shellWebContents || null;
     this.aiService = aiService || null;
@@ -211,7 +211,7 @@ export class TabManager {
     const active = this.tabs.get(this.activeTabId);
     if (!active) return;
 
-    const [winWidth, winHeight] = this.window.getSize();
+    const [winWidth, winHeight] = this.window.getContentSize();
 
     const currentSidebarWidth = this.layout.isSidebarOpen ? this.layout.sidebarWidth : 0;
     const currentCopilotWidth = this.layout.isCopilotOpen ? this.layout.copilotWidth : 0;

@@ -3,7 +3,7 @@
  * Powers a secure, multi-view architecture with BaseWindow and isolated WebContentsViews.
  */
 
-import { app, BaseWindow, WebContentsView, ipcMain, session } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, session } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { TabManager } from './tab-manager.js';
@@ -13,68 +13,56 @@ import { AIService } from './ai-service.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let mainWindow: BaseWindow | null = null;
-let shellView: WebContentsView | null = null;
+let mainWindow: BrowserWindow | null = null;
 let tabManager: TabManager | null = null;
 const privacyManager = new PrivacyManager();
 const aiService = new AIService();
 
 async function createBrowser() {
-  // 1. Create BaseWindow (Frameless, native host)
-  mainWindow = new BaseWindow({
+  // Remove default application menu bar (File, Edit, View, Window, Help)
+  Menu.setApplicationMenu(null);
+
+  // 1. Create BrowserWindow (Hosts the React UI Shell directly)
+  mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 960,
     minHeight: 640,
     backgroundColor: '#070d19',
-    titleBarStyle: 'hiddenInset'
-  });
-
-  // 2. Create Shell UI View (Runs React Browser Chrome)
-  shellView = new WebContentsView({
+    autoHideMenuBar: true,
+    title: 'Aether AI Browser',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
-      preload: path.join(__dirname, '../preload/shell-preload.js'),
+      preload: path.join(__dirname, '../preload/shell-preload.cjs'),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false
     }
   });
 
-  mainWindow.contentView.addChildView(shellView);
-
-  // Position Shell View across entire host window
-  const updateShellBounds = () => {
-    if (!mainWindow || !shellView) return;
-    const [w, h] = mainWindow.getSize();
-    shellView.setBounds({ x: 0, y: 0, width: w, height: h });
-  };
-
-  updateShellBounds();
-  mainWindow.on('resize', updateShellBounds);
-
-  // 3. Setup Privacy Protection on default & partition sessions
+  // 2. Setup Privacy Protection on default & partition sessions
   privacyManager.setupSessionPrivacy(session.defaultSession);
 
-  // 4. Initialize Tab Manager
-  tabManager = new TabManager(mainWindow, shellView.webContents, aiService);
+  // 3. Initialize Tab Manager (Native WebContentsViews are added as child views of mainWindow.contentView)
+  tabManager = new TabManager(mainWindow, mainWindow.webContents, aiService);
 
-  // Register all IPC Handlers
+  // 4. Register all IPC Handlers
   setupIpcHandlers();
 
-  // Load React Shell UI
+  // 5. Load React Shell UI
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
-    shellView.webContents.loadURL(process.env.VITE_DEV_SERVER_URL);
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
-    shellView.webContents.loadFile(path.join(__dirname, '../../dist/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
   }
 
-  // Create default first tab
+  // 6. Create default first tab
   tabManager.createTab('https://duckduckgo.com');
 }
 
 function setupIpcHandlers() {
-  if (!tabManager || !shellView) return;
+  if (!tabManager || !mainWindow) return;
 
   // --- Tab Lifecycle ---
   ipcMain.handle('tabs:create', (_, { url, workspaceId }) => {
@@ -147,29 +135,29 @@ function setupIpcHandlers() {
 
   ipcMain.handle('ai:summarizePage', async (_, { userPrompt }) => {
     const activeTab = tabManager?.getActiveTab();
-    if (!activeTab || !shellView) return;
+    if (!activeTab || !mainWindow) return;
 
     try {
       const pageData = await aiService.extractCleanPageContent(activeTab.view.webContents);
       aiService.streamAnalysis(pageData, userPrompt, (text, isComplete, error) => {
-        shellView?.webContents.send('ai:stream', { text, isComplete, error });
+        mainWindow?.webContents.send('ai:stream', { text, isComplete, error });
       });
     } catch (err: any) {
-      shellView.webContents.send('ai:stream', { text: '', isComplete: true, error: err.message });
+      mainWindow.webContents.send('ai:stream', { text: '', isComplete: true, error: err.message });
     }
   });
 
   ipcMain.handle('ai:queryCopilot', async (_, { prompt }) => {
     const activeTab = tabManager?.getActiveTab();
-    if (!activeTab || !shellView) return;
+    if (!activeTab || !mainWindow) return;
 
     try {
       const pageData = await aiService.extractCleanPageContent(activeTab.view.webContents);
       aiService.streamAnalysis(pageData, prompt, (text, isComplete, error) => {
-        shellView?.webContents.send('ai:stream', { text, isComplete, error });
+        mainWindow?.webContents.send('ai:stream', { text, isComplete, error });
       });
     } catch (err: any) {
-      shellView.webContents.send('ai:stream', { text: '', isComplete: true, error: err.message });
+      mainWindow.webContents.send('ai:stream', { text: '', isComplete: true, error: err.message });
     }
   });
 
@@ -218,7 +206,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (BaseWindow.getAllWindows().length === 0) {
+  if (BrowserWindow.getAllWindows().length === 0) {
     createBrowser();
   }
 });

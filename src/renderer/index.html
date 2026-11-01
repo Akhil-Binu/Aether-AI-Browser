@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aether AI Browser</title>
     <!-- Content Security Policy for Renderer UI -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: https:; font-src 'self' file: data:;" />
   </head>
   <body class="bg-slate-950 text-slate-100 overflow-hidden select-none m-0 p-0 font-sans antialiased">
     <div id="root"></div>
