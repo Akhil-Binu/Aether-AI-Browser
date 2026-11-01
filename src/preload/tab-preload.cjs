@@ -8,6 +8,7 @@ const { ipcRenderer } = require('electron');
 
 (() => {
   function insertTextIntoElement(target, text) {
+    if (!target) return;
     target.focus();
     try {
       document.execCommand('selectAll', false, null);
@@ -74,13 +75,6 @@ const { ipcRenderer } = require('electron');
         font-family: inherit;
       `;
 
-      pill.onmouseenter = () => {
-        if (pill.dataset.selected !== 'true') pill.style.borderColor = '#0a66c2';
-      };
-      pill.onmouseleave = () => {
-        if (pill.dataset.selected !== 'true') pill.style.borderColor = index === 0 ? '#0a66c2' : '#cbd5e1';
-      };
-
       pill.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -104,19 +98,35 @@ const { ipcRenderer } = require('electron');
     });
   }
 
-  function attachCommentHelper(inputElement) {
-    if (inputElement.dataset.aetherAttached === 'true') return;
-    inputElement.dataset.aetherAttached = 'true';
+  function attachCommentHelper(targetElement) {
+    // 1. Locate the outer unclipped comment box container
+    const hostContainer = targetElement.closest(
+      '.comments-comment-box, form.comments-comment-box__form, .comments-comment-box__form-container, .feed-shared-update-v2__comments-container, [data-testid="tweetTextarea_0"]'
+    ) || targetElement.parentElement;
 
-    // Container for button & pills
+    if (!hostContainer) return;
+
+    // Avoid duplicate buttons in same container
+    if (hostContainer.querySelector('.aether-comment-helper-container')) return;
+    if (targetElement.dataset.aetherAttached === 'true') return;
+    targetElement.dataset.aetherAttached = 'true';
+
+    // Helper to find the active editable element
+    const getEditableTarget = () => {
+      return hostContainer.querySelector('div.editor-content[contenteditable="true"], div.ql-editor[contenteditable="true"], div[role="textbox"][contenteditable="true"], div[contenteditable="true"], textarea') || targetElement;
+    };
+
+    // Container for button & pills (placed outside any clipped element)
     const wrapper = document.createElement('div');
     wrapper.className = 'aether-comment-helper-container';
     wrapper.style.cssText = `
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      margin: 6px 0;
+      margin: 8px 0 10px 48px;
       z-index: 999999;
+      position: relative;
+      clear: both;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     `;
 
@@ -131,11 +141,11 @@ const { ipcRenderer } = require('electron');
       color: #ffffff;
       font-size: 11.5px;
       font-weight: 700;
-      padding: 5px 12px;
+      padding: 6px 14px;
       border-radius: 14px;
       border: none;
       cursor: pointer;
-      box-shadow: 0 2px 6px rgba(10, 102, 194, 0.3);
+      box-shadow: 0 2px 6px rgba(10, 102, 194, 0.35);
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       outline: none;
       user-select: none;
@@ -143,18 +153,20 @@ const { ipcRenderer } = require('electron');
 
     btn.onmouseenter = () => {
       btn.style.transform = 'translateY(-1px)';
-      btn.style.boxShadow = '0 4px 10px rgba(10, 102, 194, 0.4)';
+      btn.style.boxShadow = '0 4px 10px rgba(10, 102, 194, 0.45)';
     };
     btn.onmouseleave = () => {
       btn.style.transform = 'translateY(0)';
-      btn.style.boxShadow = '0 2px 6px rgba(10, 102, 194, 0.3)';
+      btn.style.boxShadow = '0 2px 6px rgba(10, 102, 194, 0.35)';
     };
 
     btn.onclick = async (e) => {
       e.preventDefault();
       e.stopPropagation();
 
-      const postText = extractEnclosingPostText(inputElement);
+      const editable = getEditableTarget();
+      const postText = extractEnclosingPostText(hostContainer);
+
       btn.disabled = true;
       btn.innerHTML = '⏳ Writing AI Comment...';
       btn.style.opacity = '0.85';
@@ -173,10 +185,10 @@ const { ipcRenderer } = require('electron');
         }
 
         // 1. Immediately insert first suggestion into the comment box!
-        insertTextIntoElement(inputElement, suggestions[0].content);
+        insertTextIntoElement(editable, suggestions[0].content);
 
         // 2. Render options pills for switching angles
-        renderOptionPills(wrapper, inputElement, suggestions);
+        renderOptionPills(wrapper, editable, suggestions);
 
         btn.innerHTML = '✅ Comment Inserted!';
         btn.style.background = '#059669';
@@ -196,36 +208,25 @@ const { ipcRenderer } = require('electron');
     };
 
     wrapper.appendChild(btn);
-
-    // Append wrapper right next to comment input
-    if (inputElement.nextSibling) {
-      inputElement.parentNode.insertBefore(wrapper, inputElement.nextSibling);
-    } else {
-      inputElement.parentNode.appendChild(wrapper);
-    }
+    hostContainer.appendChild(wrapper);
   }
 
   function scanAndAttach() {
     const selectors = [
+      '.comments-comment-box',
+      '.comments-comment-box__form-container',
+      'form.comments-comment-box__form',
+      '.comments-comment-texteditor',
       'div.editor-content[contenteditable="true"]',
       'div.ql-editor[contenteditable="true"]',
-      'div[role="textbox"][contenteditable="true"]',
-      'div.comments-comment-box__form-container',
-      'div.comments-comment-texteditor',
+      'div[role="textbox"]',
       '[data-testid="tweetTextarea_0"]',
-      'form.comments-comment-box__form textarea',
       'div[data-placeholder*="comment" i]'
     ];
 
     selectors.forEach((sel) => {
       document.querySelectorAll(sel).forEach((el) => {
-        // Find deepest editable target
-        const editable = el.getAttribute('contenteditable') === 'true' || el.tagName === 'TEXTAREA'
-          ? el
-          : el.querySelector('div[contenteditable="true"], textarea');
-        if (editable) {
-          attachCommentHelper(editable);
-        }
+        attachCommentHelper(el);
       });
     });
   }
