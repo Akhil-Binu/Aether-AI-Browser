@@ -2,14 +2,14 @@
   "name": "aether-ai-browser",
   "version": "1.0.0",
   "description": "Next-generation, high-performance web browser with native AI copilot, isolated WebContentsView architecture, vertical workspaces, and built-in privacy protection.",
-  "main": "dist-electron/main.js",
+  "main": "dist-electron/main/index.js",
   "type": "module",
   "scripts": {
     "dev:renderer": "vite",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "npm run build:renderer && npm run build:electron",
-    "start": "electron dist-electron/main.js",
+    "start": "electron dist-electron/main/index.js",
     "lint": "tsc --noEmit"
   },
   "repository": {
